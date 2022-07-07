@@ -1,0 +1,67 @@
+name: "Release Menu"
+description: "Let you know what is contained in the release PR by leaving a comment"
+author: "noraworld"
+branding:
+ icon: file-text
+ color: yellow
+
+inputs:
+  head:
+    description: "A development branch name"
+    default: develop
+    required: true
+  base:
+    description: "A production branch name"
+    default: main
+    required: true
+  checkbox:
+    description: "Whether a comment includes checkboxes"
+    default: true
+    required: true
+  title:
+    description: "Whether a comment includes titles"
+    default: false
+    required: true
+  author:
+    description: "Whether a comment includes author names"
+    default: true
+    required: true
+  slack_token:
+    description: "A Slack bot token"
+    default: ""
+    required: false
+  slack_channel:
+    description: "A Slack channel ID where you want to post a message"
+    default: ""
+    required: false
+  mode:
+    description: "One of merged, all, or optimized"
+    default: "merged"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Enable Git operation
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Retrieve PRs and leave a comment
+      run: ${{ github.action_path }}/main
+      shell: bash
+      env:
+        REPOSITORY:   ${{ github.repository }}
+        PR:           ${{ github.event.number }}
+        GITHUB_TOKEN: ${{ github.token }}
+
+        HEAD:          ${{ inputs.head }}
+        BASE:          ${{ inputs.base }}
+        CHECKBOX:      ${{ inputs.checkbox }}
+        TITLE:         ${{ inputs.title }}
+        AUTHOR:        ${{ inputs.author }}
+        SLACK_TOKEN:   ${{ inputs.slack_token }}
+        SLACK_CHANNEL: ${{ inputs.slack_channel }}
+        MODE:          ${{ inputs.mode }}
+
+        DEBUG: false

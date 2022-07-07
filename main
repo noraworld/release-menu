@@ -1,0 +1,184 @@
+#!/bin/bash
+
+set -eu
+
+main() {
+  prs=$(pr_list_json)
+  comment
+  # It should be performed at the end because it will exit if posting a message to Slack fails
+  post_to_slack
+}
+
+# It should be performed only once because it calls GitHub API many times
+pr_list_json() {
+  case $MODE in
+    merged)
+      result=$(
+        # Get merge commits
+        git --no-pager log --oneline --reverse --merges origin/"$BASE"..origin/"$HEAD" |
+
+        # Extract merge commit hashes
+        awk '{ print $1 }' |
+
+        # Retrieve a JSON from an API
+        #
+        #   Memo:
+        #     Call as many APIs as PRs
+        #     I'm not sure how to put all calls together
+        xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/commits/{}/pulls"
+      )
+
+      ;;
+    all)
+      result=$(
+        git --no-pager log --oneline --reverse origin/"$BASE"..origin/"$HEAD" |
+        awk '{ print $1 }' |
+        xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/commits/{}/pulls"
+      )
+
+      ;;
+    optimized)
+      merged_prs=$(
+        git --no-pager log --oneline --reverse --merges origin/"$BASE"..origin/"$HEAD" |
+        awk '{ print $1 }' |
+        xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/commits/{}/pulls"
+      )
+
+      commits_associated_with_merged_prs=$(
+        echo "$merged_prs" |
+        jq -r .[].number |
+        xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/pulls/{}/commits" --jq .[].sha
+      )
+
+      no_merge_commits=$(
+        git --no-pager log --oneline --reverse --no-merges --no-abbrev-commit origin/"$BASE"..origin/"$HEAD" |
+        awk '{ print $1 }'
+      )
+
+      # (no merge commits) - (commits associated with merged PRs) =
+      # (squash commits & rebase commits & commits not associated with any PRs)
+      squash_and_rebase_and_orphan_commits=$(
+        echo "$no_merge_commits" |
+        grep -v "$commits_associated_with_merged_prs" |
+        xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/commits/{}/pulls"
+      )
+
+      # Combine (merged PRs) & (squash commits & rebase commits & commits not associated with any PRs)
+      result=$(
+        printf "%s\n%s" "$merged_prs" "$squash_and_rebase_and_orphan_commits" |
+        jq -s 'add'
+      )
+
+      ;;
+    *)
+      echo "Error: Unrecognized mode \"$MODE\" is detected" >&2
+      exit 1
+
+      ;;
+  esac
+
+  echo "$result"
+}
+
+comment() {
+  if $DEBUG; then
+    message github
+  else
+    gh pr comment "$PR" --body "$(message github)"
+  fi
+}
+
+post_to_slack() {
+# Do not indent in this section because extra spaces are interpolated to a Slack message
+if $DEBUG; then
+slack_message="
+The following PRs will be released after <https://github.com/$REPOSITORY/pulls|(DEBUG: a PR number with the link is inserted here on production)> is merged.
+$(message slack)
+"
+else
+slack_message="
+The following PRs will be released after <https://github.com/$REPOSITORY/pull/$PR|#$PR> is merged.
+$(message slack)
+"
+fi
+
+  if [ "$SLACK_CHANNEL" != "" ] && [ "$SLACK_TOKEN" != "" ]; then
+    response=$(
+      curl \
+        -d "text=$slack_message " \
+        -d "channel=$SLACK_CHANNEL" \
+        -H "Authorization: Bearer $SLACK_TOKEN" \
+        -X POST https://slack.com/api/chat.postMessage
+    )
+  fi
+
+  ok=$(echo "$response" | jq -r .ok)
+
+  if ! $ok; then
+    echo "Error: Failed to post a message to Slack." >&2
+    echo "       $response" >&2
+    exit 1
+  fi
+}
+
+message() {
+  type=$1
+
+  paste -d " " <(pr_numbers "$type") <(titles "$type") <(authors "$type") | sed -e "s/^/$(lists "$type")/g" | uniq
+}
+
+pr_numbers() {
+  type=$1
+
+  case $type in
+    github)
+      echo "$prs" | jq -r .[].number | sed -e 's/^/#/g'
+      ;;
+    slack)
+      echo "$prs" | jq -r .[].number | xargs -I {} echo "<https://github.com/$REPOSITORY/pull/{}|#{}>"
+      ;;
+  esac
+}
+
+titles() {
+  type=$1
+
+  if $TITLE || [ "$type" = "slack" ]; then
+    echo "$prs" | jq -r .[].title
+  else
+    echo ""
+  fi
+}
+
+authors() {
+  if ! $AUTHOR; then
+    echo ""
+    return
+  fi
+
+  type=$1
+
+  case $type in
+    github)
+     echo "$prs" | jq -r .[].user.login | sed -e 's/^/@/g'
+      ;;
+    slack)
+     echo "$prs" | jq -r .[].user.login | sed -e 's/^/by `@/g' | sed -e 's/$/`/g'
+      ;;
+  esac
+}
+
+lists() {
+  type=$1
+
+  # Slack API does not support bulleted lists
+  if [ "$type" = "slack" ]; then
+    echo "• "
+  elif $CHECKBOX; then
+    echo "* [ ] "
+  else
+    echo "* "
+  fi
+}
+
+main "$@"
