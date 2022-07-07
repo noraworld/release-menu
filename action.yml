@@ -2,8 +2,8 @@ name: "Release Menu"
 description: "Let you know what is contained in the release PR by leaving a comment"
 author: "noraworld"
 branding:
- icon: file-text
- color: yellow
+  icon: file-text
+  color: yellow
 
 inputs:
   head:
