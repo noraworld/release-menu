@@ -35,6 +35,7 @@ jobs:
         with:
           # Your options here like this:
           # base: master
+          # mode: optimized
 ```
 
 ### Options
