@@ -1,4 +1,8 @@
 # Release Menu
+
+| [English](/README/en.md) | **日本語** |
+| ------------------------ | --------- |
+
 Release Menu は、何がリリースされるのかをリリースプルリクエスト (以下 PR) に自動的にコメントする GitHub Actions です。Slack に投稿する機能もあります。
 
 | ![GitHub comment](/screenshots/github_comment.png) |

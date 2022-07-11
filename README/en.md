@@ -1,4 +1,8 @@
 # Release Menu
+
+| **English** | [日本語](/README/ja.md) |
+| ----------- | ---------------------- |
+
 Release Menu lets you know what is contained in the release PR by leaving a comment. It also has the ability to post the message to Slack.
 
 | ![GitHub comment](/screenshots/github_comment.png) |
