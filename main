@@ -99,15 +99,22 @@ pr_list_json() {
 }
 
 comment() {
-  if $DEBUG; then
-    message github
-  else
+  if ! $DEBUG && [ "$prs" != "" ]; then
     gh pr comment "$PR" --body "$(message github)"
+  elif ! $DEBUG && [ "$prs" = "" ]; then
+    gh pr comment "$PR" --body "No pull requests to be released."
+  elif $DEBUG && [ "$prs" != "" ]; then
+    message github
+  elif $DEBUG && [ "$prs" = "" ]; then
+    echo "No pull requests to be released."
+  else
+    echo "Error: Something went wrong" >&2
+    exit 1
   fi
 }
 
 post_to_slack() {
-if [ "$SLACK_CHANNEL" = "" ] || [ "$SLACK_TOKEN" = "" ]; then
+if [ "$SLACK_CHANNEL" = "" ] || [ "$SLACK_TOKEN" = "" ] || [ "$prs" = "" ]; then
   return
 fi
 
