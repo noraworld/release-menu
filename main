@@ -44,11 +44,15 @@ pr_list_json() {
         xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/commits/{}/pulls"
       )
 
-      commits_associated_with_merged_prs=$(
-        echo "$merged_prs" |
-        jq -r .[].number |
-        xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/pulls/{}/commits" --jq .[].sha
-      )
+      if [ "$merged_prs" != "" ]; then
+        commits_associated_with_merged_prs=$(
+          echo "$merged_prs" |
+          jq -r .[].number |
+          xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/pulls/{}/commits" --jq .[].sha
+        )
+      else
+        commits_associated_with_merged_prs=""
+      fi
 
       no_merge_commits=$(
         git --no-pager log --oneline --reverse --no-merges --no-abbrev-commit origin/"$BASE"..origin/"$HEAD" |
@@ -57,15 +61,29 @@ pr_list_json() {
 
       # (no merge commits) - (commits associated with merged PRs) =
       # (squash commits & rebase commits & commits not associated with any PRs)
-      squash_and_rebase_and_orphan_commits=$(
-        echo "$no_merge_commits" |
-        grep -v "$commits_associated_with_merged_prs" |
-        xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/commits/{}/pulls"
-      )
+      if [ "$no_merge_commits" != "" ] && [ "$commits_associated_with_merged_prs" != "" ]; then
+        squash_and_rebase_prs=$(
+          echo "$no_merge_commits" |
+          grep -v "$commits_associated_with_merged_prs" |
+          xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/commits/{}/pulls"
+        )
+      elif [ "$no_merge_commits" != "" ]; then
+        squash_and_rebase_prs=$(
+          echo "$no_merge_commits" |
+          xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/commits/{}/pulls"
+        )
+      elif [ "$commits_associated_with_merged_prs" != "" ]; then
+        squash_and_rebase_prs=$(
+          echo "$commits_associated_with_merged_prs" |
+          xargs -I {} gh api "https://api.github.com/repos/$REPOSITORY/commits/{}/pulls"
+        )
+      else
+        squash_and_rebase_prs=""
+      fi
 
-      # Combine (merged PRs) & (squash commits & rebase commits & commits not associated with any PRs)
+      # Combine (merged PRs) & (squash and rebase PRs)
       result=$(
-        printf "%s\n%s" "$merged_prs" "$squash_and_rebase_and_orphan_commits" |
+        printf "%s\n%s" "$merged_prs" "$squash_and_rebase_prs" |
         jq -s 'add'
       )
 
