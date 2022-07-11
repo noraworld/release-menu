@@ -89,6 +89,10 @@ comment() {
 }
 
 post_to_slack() {
+if [ "$SLACK_CHANNEL" = "" ] || [ "$SLACK_TOKEN" = "" ]; then
+  return
+fi
+
 # Do not indent in this section because extra spaces are interpolated to a Slack message
 if $DEBUG; then
 slack_message="
@@ -102,15 +106,13 @@ $(message slack)
 "
 fi
 
-  if [ "$SLACK_CHANNEL" != "" ] && [ "$SLACK_TOKEN" != "" ]; then
-    response=$(
-      curl \
-        -d "text=$slack_message " \
-        -d "channel=$SLACK_CHANNEL" \
-        -H "Authorization: Bearer $SLACK_TOKEN" \
-        -X POST https://slack.com/api/chat.postMessage
-    )
-  fi
+  response=$(
+    curl \
+      -d "text=$slack_message " \
+      -d "channel=$SLACK_CHANNEL" \
+      -H "Authorization: Bearer $SLACK_TOKEN" \
+      -X POST https://slack.com/api/chat.postMessage
+  )
 
   ok=$(echo "$response" | jq -r .ok)
 
