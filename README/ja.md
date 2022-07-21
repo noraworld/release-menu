@@ -11,6 +11,11 @@ Release Menu は、何がリリースされるのかをリリースプルリク�
 
 
 
+## 紹介記事
+* [リリース時にリリース内容をコメントする GitHub Actions のご紹介](https://zenn.dev/noraworld/articles/release-menu)
+
+
+
 ## 特長
 * 簡単セットアップ
 * 高速に動作
